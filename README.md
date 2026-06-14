@@ -18,6 +18,9 @@ browser and it works.
   | 🟢 **STRONG BUY** | Fear & Greed `< 25` **and** price `> 10%` below the 30-day high |
   | 🟡 **CONSIDER BUYING** | either one of those is true |
   | ⬜ **HOLD** | neither is true |
+- **Moving averages & dip zones** — 30 / 50 / 200-day moving averages with a plain-English
+  "buy the dip" (BTFD) read-out (deep-value / buy-the-dip / minor-dip / extended) and
+  golden-cross vs death-cross trend.
 - **Telegram alerts** — one button sends the current signal + stats to your phone.
 - **Resilient** — automatic fallback across data providers, request timeouts with retry,
   and a local cache so the last known values still show if every API is down.

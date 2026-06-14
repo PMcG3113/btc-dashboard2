@@ -270,6 +270,17 @@
     </div>
   </div>
 
+  <!-- ── MOVING AVERAGES / BTFD ─────────────────────────── -->
+  <div class="card col-2">
+    <div class="card-head">
+      <span class="card-title">Moving Averages &amp; Dip Zones</span>
+      <span class="badge badge-stale" id="ma-stale">Cached</span>
+    </div>
+    <div id="ma-content" aria-live="polite">
+      <div class="loading"><div class="spinner"></div>Loading moving averages…</div>
+    </div>
+  </div>
+
   <!-- ── TELEGRAM ───────────────────────────────────────── -->
   <div class="card col-2">
     <div class="card-head">
@@ -359,6 +370,7 @@ const S = {
   high30d: null, closes: null, ohlcFresh: false,
   dropPct: null,
   fng: null, fngTxt: null, fngFresh: false,
+  ma30: null, ma50: null, ma200: null, maFresh: false, dailyCloses: null,
   cacheTs: null, lastLoad: null,
 };
 
@@ -437,6 +449,25 @@ const ohlcSources = [
       return { highs: d.map(c => parseFloat(c[2])), closes: d.map(c => parseFloat(c[4])) }; } },
 ];
 
+/* Daily closes (~200 days) for the 30 / 50 / 200-day moving averages */
+const dailySources = [
+  { name: 'CoinGecko', fn: async () => {
+      const d = await fetchJSON('https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=eur&days=200');
+      const arr = d && d.prices;
+      if (!Array.isArray(arr) || arr.length < 30) throw new Error('no market_chart');
+      return arr.map(p => p[1]); } },
+  { name: 'Binance', fn: async () => {
+      const d = await fetchJSON('https://api.binance.com/api/v3/klines?symbol=BTCEUR&interval=1d&limit=200');
+      if (!Array.isArray(d) || d.length < 30) throw new Error('no daily klines');
+      return d.map(c => parseFloat(c[4])); } },
+];
+
+const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+function movingAverage(closes, n) {
+  if (!closes || closes.length < n) return null;
+  return mean(closes.slice(-n));
+}
+
 async function fetchFng() {
   const d = await fetchJSON('https://api.alternative.me/fng/?limit=1');
   const v = parseInt(d && d.data && d.data[0] && d.data[0].value, 10);
@@ -478,6 +509,45 @@ function computeSignal() {
       desc: 'One of the two buying conditions is active.', fearMet, dropMet };
   return { cls: 'sig-hold', icon: '⬜', text: 'HOLD',
     desc: 'Neither buying condition is met right now.', fearMet, dropMet };
+}
+
+/* "Buy the dip" read-out from price vs the 30/50/200-day moving averages.
+   Long-term trend = where price sits relative to the 200-day MA;
+   the dip opportunity = how far price has pulled back below the shorter MAs. */
+function computeDip() {
+  const { price, ma30, ma50, ma200 } = S;
+  if (price == null || ma200 == null)
+    return { cls: 'sig-hold', icon: '⬜', text: 'NO DATA',
+      note: 'Not enough price history yet to read the moving averages.' };
+
+  const trend = (ma50 != null && ma200 != null)
+    ? (ma50 >= ma200 ? '📈 Golden cross (50d above 200d) — long-term uptrend.'
+                     : '📉 Death cross (50d below 200d) — long-term downtrend.')
+    : '';
+  const below200 = ((price - ma200) / ma200) * 100;   // % vs 200d
+
+  // Deepest value: price under the 200-day MA
+  if (price < ma200)
+    return { cls: 'sig-strong', icon: '🟢', text: 'DEEP-VALUE DIP',
+      note: 'Price is ' + Math.abs(below200).toFixed(1) + '% below the 200-day average — '
+        + 'historically a strong long-term accumulation zone. But being under the 200d also '
+        + 'means the broad trend is down, so dollar-cost-average in rather than going all-in. ' + trend };
+
+  // Healthy pullback inside an uptrend: above 200d but below the 50d
+  if (ma50 != null && price < ma50)
+    return { cls: 'sig-strong', icon: '🟢', text: 'BUY-THE-DIP ZONE',
+      note: 'Uptrend intact (price is above the 200-day average) but pulled back below the 50-day — '
+        + 'the classic "buy the dip" setup. ' + trend };
+
+  // Minor dip: below the 30d but still above the 50d
+  if (ma30 != null && price < ma30)
+    return { cls: 'sig-consider', icon: '🟡', text: 'MINOR DIP',
+      note: 'A modest pullback below the 30-day average within an uptrend — a small dip-buy. ' + trend };
+
+  // Extended above everything
+  return { cls: 'sig-hold', icon: '⬜', text: 'EXTENDED',
+    note: 'Price is above all three moving averages (' + below200.toFixed(1) + '% over the 200d). '
+      + 'The trend is strong but there is no dip right now — consider waiting for a pullback or DCA. ' + trend };
 }
 
 /* ═════════════════════════════════════════════════════════════
@@ -595,16 +665,51 @@ function renderSignal() {
   if (S.price !== null) document.title = eur(S.price) + ' · ' + sig.text + ' · BTC';
 }
 
+function maRow(label, ma) {
+  if (ma == null || S.price == null)
+    return '<div class="price-row"><span class="lbl">' + label + '</span>' +
+           '<span class="val c-muted">N/A</span></div>';
+  const diff = ((S.price - ma) / ma) * 100;            // price vs MA, %
+  const below = diff < 0;
+  const cls = below ? 'c-green' : 'c-muted';           // below MA = cheaper = greener for buyers
+  const tag = below ? (Math.abs(diff).toFixed(1) + '% below') : (diff.toFixed(1) + '% above');
+  return '<div class="price-row"><span class="lbl">' + label +
+         ' <span style="color:var(--muted)">' + eur(ma) + '</span></span>' +
+         '<span class="val ' + cls + '">' + (below ? '▼ ' : '▲ ') + tag + '</span></div>';
+}
+
+function renderMA() {
+  const el = document.getElementById('ma-content');
+  document.getElementById('ma-stale').classList.toggle('show', S.ma200 != null && !S.maFresh);
+  if (S.ma30 == null && S.ma50 == null && S.ma200 == null) {
+    el.innerHTML = '<div class="error-pill">⚠ Could not load moving-average data.</div>';
+    return;
+  }
+  const dip = computeDip();
+  el.innerHTML =
+    '<div class="signal-box ' + dip.cls + '">' +
+      '<div class="signal-icon">' + dip.icon + '</div>' +
+      '<div class="signal-text" style="font-size:1.3rem">' + dip.text + '</div>' +
+      '<div class="signal-desc">' + dip.note + '</div>' +
+    '</div>' +
+    '<div class="price-rows">' +
+      maRow('30-day MA', S.ma30) +
+      maRow('50-day MA', S.ma50) +
+      maRow('200-day MA', S.ma200) +
+    '</div>';
+}
+
 /* ═════════════════════════════════════════════════════════════
    LOAD CYCLE
 ═════════════════════════════════════════════════════════════ */
 async function loadData() {
   const cache = store.get(CONFIG.keys.cache) || {};
-  let pr = null, oh = null, fg = null;
+  let pr = null, oh = null, fg = null, dl = null;
 
   await Promise.all([
     firstOk(priceSources).then(r => pr = r).catch(() => {}),
     firstOk(ohlcSources).then(r => oh = r).catch(() => {}),
+    firstOk(dailySources).then(r => dl = r).catch(() => {}),
     fetchFng().then(r => fg = r).catch(() => {}),
   ]);
 
@@ -634,16 +739,25 @@ async function loadData() {
   if (fg) { S.fng = fg.value; S.fngTxt = fg.txt; S.fngFresh = true; }
   else if (cache.fng != null) { S.fng = cache.fng; S.fngTxt = cache.fngTxt; S.fngFresh = false; }
 
+  // ── moving averages (30 / 50 / 200-day) ──
+  if (dl) { S.dailyCloses = dl.value; S.maFresh = true; }
+  else if (cache.dailyCloses) { S.dailyCloses = cache.dailyCloses; S.maFresh = false; }
+  S.ma30  = movingAverage(S.dailyCloses, 30);
+  S.ma50  = movingAverage(S.dailyCloses, 50);
+  S.ma200 = movingAverage(S.dailyCloses, 200);
+
   // ── persist best-known snapshot ──
   store.set(CONFIG.keys.cache, {
     price: S.price, priceSrc: S.priceSrc, high30d: S.high30d,
-    closes: S.closes, fng: S.fng, fngTxt: S.fngTxt, ts: Date.now(),
+    closes: S.closes, fng: S.fng, fngTxt: S.fngTxt,
+    dailyCloses: S.dailyCloses, ts: Date.now(),
   });
   S.lastLoad = Date.now();
 
   renderPrice();
   renderFng();
   renderSignal();
+  renderMA();
 }
 
 async function run() {
@@ -726,6 +840,8 @@ async function sendTelegram() {
   }
 
   const sig = computeSignal();
+  const dip = computeDip();
+  const maStr = ma => ma != null ? eur(ma) : 'N/A';
   const lines = [
     '📊 *BTC Decision Dashboard*',
     '',
@@ -738,6 +854,9 @@ async function sendTelegram() {
     '📉 *Drop from High:* ' + (S.dropPct !== null ? pct(S.dropPct) : 'N/A'),
     '',
     '😨 *Fear & Greed:* ' + (S.fng !== null ? S.fng + ' — ' + S.fngTxt : 'N/A'),
+    '',
+    dip.icon + ' *Dip read:* ' + dip.text,
+    '📊 *MAs* — 30d ' + maStr(S.ma30) + ' · 50d ' + maStr(S.ma50) + ' · 200d ' + maStr(S.ma200),
     '',
     '_' + new Date().toLocaleString('en-GB') + '_',
   ];
