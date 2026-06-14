@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>BTC Decision Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='%23111118'/><text x='16' y='23' font-size='20' font-family='Arial' font-weight='bold' text-anchor='middle' fill='%23f7931a'>%E2%82%BF</text></svg>" />
+  <style>
+    :root {
+      --bg:        #09090f;
+      --card:      #111118;
+      --card2:     #181824;
+      --border:    #252535;
+      --txt:       #dde0f0;
+      --muted:     #7778a0;
+      --btc:       #f7931a;
+      --green-x:   #00a550;  /* extreme fear  */
+      --green:     #4caf50;  /* fear          */
+      --orange:    #ff9800;  /* neutral       */
+      --red:       #ef5350;  /* greed         */
+      --red-x:     #c62828;  /* extreme greed */
+      --grey:      #55556a;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--txt);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 16px 16px 40px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────────── */
+    .header { text-align: center; padding: 26px 12px 20px; }
+    .header-logo {
+      font-size: 2.4rem; line-height: 1;
+      filter: drop-shadow(0 0 18px rgba(247,147,26,.45));
+    }
+    .header h1 {
+      font-size: 1.45rem; font-weight: 700; letter-spacing: .5px;
+      color: var(--btc); margin: 8px 0 4px;
+    }
+    .header p { font-size: .78rem; color: var(--muted); letter-spacing: .3px; }
+
+    /* ── GRID ───────────────────────────────────────────────── */
+    .grid {
+      display: grid; grid-template-columns: 1fr; gap: 14px;
+      max-width: 760px; margin: 0 auto;
+    }
+    @media (min-width: 560px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .col-2 { grid-column: 1 / -1; }
+
+    /* ── CARDS ──────────────────────────────────────────────── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 18px; padding: 22px 20px;
+    }
+    .card-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; margin-bottom: 18px;
+    }
+    .card-title {
+      font-size: .7rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.8px; color: var(--muted);
+    }
+    .badge {
+      font-size: .58rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; padding: 3px 7px; border-radius: 6px;
+      display: none; align-items: center; gap: 4px; white-space: nowrap;
+    }
+    .badge.show { display: inline-flex; }
+    .badge-src   { background: rgba(247,147,26,.12); color: var(--btc); }
+    .badge-stale { background: rgba(239,83,80,.14); color: var(--red); }
+
+    /* ── PRICE CARD ─────────────────────────────────────────── */
+    .price-big {
+      font-size: 2.5rem; font-weight: 800; color: var(--btc);
+      letter-spacing: -.5px; line-height: 1;
+    }
+    .spark-wrap { margin: 14px 0 4px; }
+    .spark { width: 100%; height: 54px; display: block; }
+    .spark-range {
+      display: flex; justify-content: space-between;
+      font-size: .64rem; color: var(--muted); margin-top: 2px;
+    }
+    .price-rows {
+      margin-top: 16px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .price-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 12px; background: var(--card2); border-radius: 10px;
+    }
+    .price-row .lbl { font-size: .78rem; color: var(--muted); }
+    .price-row .val { font-size: .92rem; font-weight: 700; }
+    .c-green-x { color: var(--green-x); }
+    .c-green   { color: var(--green); }
+    .c-orange  { color: var(--orange); }
+    .c-red     { color: var(--red); }
+    .c-muted   { color: var(--muted); }
+    .c-btc     { color: var(--btc); }
+
+    /* ── FEAR & GREED CARD ──────────────────────────────────── */
+    .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .gauge-svg { width: 180px; height: 104px; display: block; }
+    .gauge-score { font-size: 3rem; font-weight: 800; line-height: 1; margin-top: 2px; }
+    .gauge-label {
+      font-size: .78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.5px; margin-bottom: 8px;
+    }
+    .gauge-ticks { display: flex; justify-content: space-between; width: 180px; margin-top: 4px; }
+    .gauge-tick { font-size: .6rem; color: var(--muted); text-align: center; flex: 1; line-height: 1.2; }
+
+    /* ── SIGNAL CARD ────────────────────────────────────────── */
+    .signal-box {
+      border-radius: 14px; padding: 20px 16px; text-align: center;
+      margin-bottom: 16px; transition: background .4s, border-color .4s, color .4s;
+    }
+    .signal-icon { font-size: 2rem; line-height: 1; margin-bottom: 6px; }
+    .signal-text { font-size: 1.7rem; font-weight: 900; letter-spacing: 1px; line-height: 1; }
+    .signal-desc { font-size: .78rem; margin-top: 8px; opacity: .85; }
+
+    .sig-strong   { background: rgba(0,165,80,.12); border: 2px solid var(--green-x); color: var(--green-x); }
+    .sig-consider { background: rgba(76,175,80,.10); border: 2px solid var(--green);  color: var(--green); }
+    .sig-hold     { background: rgba(85,85,106,.10); border: 2px solid var(--grey);   color: var(--grey); }
+
+    .conditions { display: flex; flex-direction: column; gap: 8px; }
+    .cond {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+      background: var(--card2); border-radius: 10px; font-size: .8rem;
+    }
+    .cond-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .dot-on  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot-off { background: var(--grey); }
+
+    /* ── TELEGRAM CARD ──────────────────────────────────────── */
+    .settings-toggle {
+      display: flex; align-items: center; gap: 8px; font-size: .8rem;
+      color: var(--muted); cursor: pointer; user-select: none;
+      margin-bottom: 12px; border: none; background: none; padding: 0;
+    }
+    .settings-toggle:hover { color: var(--txt); }
+    .settings-toggle svg { transition: transform .25s; }
+    .settings-toggle.open svg { transform: rotate(90deg); }
+    .saved-tag {
+      font-size: .58rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--green); background: rgba(76,175,80,.12);
+      padding: 2px 6px; border-radius: 5px; display: none;
+    }
+    .saved-tag.show { display: inline-block; }
+
+    .settings-panel { display: none; flex-direction: column; gap: 9px; margin-bottom: 14px; }
+    .settings-panel.open { display: flex; }
+    .field-label { font-size: .72rem; color: var(--muted); margin-bottom: 4px; letter-spacing: .5px; }
+    .input-row { position: relative; }
+    input[type="text"], input[type="password"] {
+      width: 100%; background: var(--card2); border: 1px solid var(--border);
+      border-radius: 9px; padding: 10px 13px; color: var(--txt);
+      font-size: .84rem; outline: none; transition: border-color .2s;
+    }
+    input:focus { border-color: var(--btc); }
+    input::placeholder { color: var(--muted); }
+    .reveal-btn {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: .68rem; padding: 4px 6px; letter-spacing: .5px;
+    }
+    .reveal-btn:hover { color: var(--txt); }
+    .hint { font-size: .72rem; color: var(--muted); line-height: 1.5; }
+    .hint strong { color: var(--txt); }
+
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 13px; border: none; border-radius: 11px;
+      font-size: .9rem; font-weight: 700; cursor: pointer;
+      transition: opacity .18s, transform .12s;
+    }
+    .btn:hover  { opacity: .88; }
+    .btn:active { transform: scale(.98); opacity: .75; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .btn-tg { background: #0088cc; color: #fff; margin-bottom: 10px; }
+    .btn-refresh {
+      background: rgba(247,147,26,.1); color: var(--btc);
+      border: 1px solid rgba(247,147,26,.35);
+    }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-ghost {
+      background: none; color: var(--muted); border: 1px solid var(--border);
+      flex: 0 0 auto; padding: 13px 16px;
+    }
+    .btn-ghost:hover { color: var(--txt); }
+
+    .send-status {
+      text-align: center; font-size: .78rem; min-height: 18px;
+      margin-bottom: 10px; transition: color .3s;
+    }
+    .s-ok  { color: var(--green); }
+    .s-err { color: var(--red); }
+
+    /* ── FOOTER ─────────────────────────────────────────────── */
+    .footer {
+      text-align: center; font-size: .72rem; color: var(--muted);
+      margin: 18px auto 0; max-width: 760px; line-height: 1.6;
+    }
+    .disclaimer { font-size: .66rem; opacity: .7; margin-top: 6px; }
+
+    /* ── LOADING / ERROR ────────────────────────────────────── */
+    .loading { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: .83rem; }
+    .spinner {
+      width: 16px; height: 16px; border: 2px solid var(--border);
+      border-top-color: var(--btc); border-radius: 50%;
+      animation: spin .75s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px;
+      background: rgba(239,83,80,.1); border: 1px solid rgba(239,83,80,.3);
+      border-radius: 8px; color: var(--red); font-size: .78rem;
+    }
+    @keyframes pricePop { 0% { opacity: .5; transform: scale(.97); } 100% { opacity: 1; transform: scale(1); } }
+    .price-pop { animation: pricePop .35s ease-out; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation-duration: 2s; }
+      .price-pop { animation: none; }
+      .signal-box { transition: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">₿</div>
+  <h1>BTC Decision Dashboard</h1>
+  <p>Live data &bull; Auto-refresh every 5 min &bull; CoinGecko / Binance / Alternative.me</p>
+</div>
+
+<div class="grid">
+
+  <!-- ── LIVE PRICE ──────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Live BTC Price</span>
+      <span class="badge badge-src" id="price-src"></span>
+    </div>
+    <div id="price-content" aria-live="polite">
+      <div class="loading"><div class="spinner"></div>Fetching price…</div>
+    </div>
+  </div>
+
+  <!-- ── FEAR & GREED ───────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <span class="card-title">Fear &amp; Greed Index</span>
+      <span class="badge badge-stale" id="fng-stale">Cached</span>
+    </div>
+    <div id="fng-content" aria-live="polite">
+      <div class="loading"><div class="spinner"></div>Fetching index…</div>
+    </div>
+  </div>
+
+  <!-- ── BUY SIGNAL ─────────────────────────────────────── -->
+  <div class="card col-2">
+    <div class="card-head"><span class="card-title">Buy Signal</span></div>
+    <div id="signal-content" aria-live="polite">
+      <div class="loading"><div class="spinner"></div>Calculating signal…</div>
+    </div>
+  </div>
+
+  <!-- ── TELEGRAM ───────────────────────────────────────── -->
+  <div class="card col-2">
+    <div class="card-head">
+      <span class="card-title">Telegram Alert</span>
+      <span class="saved-tag" id="saved-tag">✓ Saved</span>
+    </div>
+
+    <button class="settings-toggle" id="settings-btn" onclick="toggleSettings()" aria-expanded="false">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M4 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Configure Telegram Settings
+    </button>
+
+    <div class="settings-panel" id="settings-panel">
+      <div>
+        <div class="field-label">BOT TOKEN</div>
+        <div class="input-row">
+          <input type="password" id="bot-token" placeholder="1234567890:ABCdefGHI…"
+                 autocomplete="off" spellcheck="false" oninput="saveTelegram()" />
+          <button class="reveal-btn" type="button" onclick="toggleReveal()" id="reveal-btn">SHOW</button>
+        </div>
+      </div>
+      <div>
+        <div class="field-label">CHAT ID (your user ID or group ID)</div>
+        <input type="text" id="chat-id" placeholder="-1001234567890 or 123456789"
+               autocomplete="off" spellcheck="false" oninput="saveTelegram()" />
+      </div>
+      <div class="hint">
+        Bot Token from <strong>@BotFather</strong> &middot; Chat ID from <strong>@userinfobot</strong>.
+        Saved only in <strong>this browser</strong> (localStorage) — never uploaded anywhere.
+      </div>
+      <button class="btn btn-ghost" style="width:100%" type="button" onclick="clearTelegram()">
+        Clear saved settings
+      </button>
+    </div>
+
+    <button class="btn btn-tg" id="tg-btn" onclick="sendTelegram()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+      Send Alert to Telegram
+    </button>
+
+    <div class="send-status" id="send-status" aria-live="polite"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-refresh" id="refresh-btn" onclick="run()" style="flex:1">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        </svg>
+        Refresh Now
+      </button>
+    </div>
+  </div>
+
+</div><!-- /grid -->
+
+<div class="footer">
+  <div id="status-line">—</div>
+  <div class="disclaimer">
+    For informational purposes only. Not financial advice. Crypto is volatile — do your own research.
+  </div>
+</div>
+
+<script>
+/* ═════════════════════════════════════════════════════════════
+   CONFIG
+═════════════════════════════════════════════════════════════ */
+const CONFIG = {
+  refreshMs:      5 * 60 * 1000,
+  fetchTimeoutMs: 12000,
+  retries:        2,
+  signal: { fearBelow: 25, dropBelowPct: 10 },   // STRONG BUY thresholds
+  keys:   { tg: 'btcDash.telegram', cache: 'btcDash.cache' },
+};
+
+/* ═════════════════════════════════════════════════════════════
+   STATE
+═════════════════════════════════════════════════════════════ */
+const S = {
+  price: null, priceSrc: null, priceFresh: false,
+  high30d: null, closes: null, ohlcFresh: false,
+  dropPct: null,
+  fng: null, fngTxt: null, fngFresh: false,
+  cacheTs: null, lastLoad: null,
+};
+
+let refreshTimer = null, nextRefreshAt = 0, loading = false, revealed = false;
+
+/* ═════════════════════════════════════════════════════════════
+   SMALL HELPERS
+═════════════════════════════════════════════════════════════ */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const eur   = n => '€' + new Intl.NumberFormat('de-DE',
+  { maximumFractionDigits: 0 }).format(Math.round(n));
+const pct   = n => (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+
+async function fetchJSON(url, { timeout = CONFIG.fetchTimeoutMs, retries = CONFIG.retries } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeout);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } });
+      clearTimeout(t);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch (e) {
+      clearTimeout(t);
+      lastErr = e;
+      if (attempt < retries) await sleep(500 * Math.pow(2, attempt));   // 0.5s, 1s
+    }
+  }
+  throw lastErr;
+}
+
+/* Try each source in order; return { value, src } from the first that works */
+async function firstOk(sources) {
+  let lastErr;
+  for (const s of sources) {
+    try { return { value: await s.fn(), src: s.name }; }
+    catch (e) { lastErr = e; console.warn('[source] ' + s.name + ' failed:', e.message); }
+  }
+  throw lastErr || new Error('all sources failed');
+}
+
+/* ═════════════════════════════════════════════════════════════
+   DATA SOURCES (with automatic fallback)
+═════════════════════════════════════════════════════════════ */
+const priceSources = [
+  { name: 'CoinGecko', fn: async () => {
+      const d = await fetchJSON('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur');
+      const p = d && d.bitcoin && d.bitcoin.eur;
+      if (!p) throw new Error('no price'); return p; } },
+  { name: 'Binance', fn: async () => {
+      const d = await fetchJSON('https://api.binance.com/api/v3/ticker/price?symbol=BTCEUR');
+      const p = parseFloat(d && d.price);
+      if (!p) throw new Error('no price'); return p; } },
+  { name: 'Coinbase', fn: async () => {
+      const d = await fetchJSON('https://api.coinbase.com/v2/prices/BTC-EUR/spot');
+      const p = parseFloat(d && d.data && d.data.amount);
+      if (!p) throw new Error('no price'); return p; } },
+];
+
+/* OHLC → { highs[], closes[] } over ~30 days, for the high + sparkline */
+const ohlcSources = [
+  { name: 'CoinGecko', fn: async () => {
+      const d = await fetchJSON('https://api.coingecko.com/api/v3/coins/bitcoin/ohlc?vs_currency=eur&days=30');
+      if (!Array.isArray(d) || !d.length) throw new Error('no ohlc');
+      return { highs: d.map(c => c[2]), closes: d.map(c => c[4]) }; } },
+  { name: 'Binance', fn: async () => {
+      const d = await fetchJSON('https://api.binance.com/api/v3/klines?symbol=BTCEUR&interval=4h&limit=180');
+      if (!Array.isArray(d) || !d.length) throw new Error('no klines');
+      return { highs: d.map(c => parseFloat(c[2])), closes: d.map(c => parseFloat(c[4])) }; } },
+];
+
+async function fetchFng() {
+  const d = await fetchJSON('https://api.alternative.me/fng/?limit=1');
+  const v = parseInt(d && d.data && d.data[0] && d.data[0].value, 10);
+  if (Number.isNaN(v)) throw new Error('no fng');
+  return { value: v, txt: fngLabel(v) };
+}
+
+/* ═════════════════════════════════════════════════════════════
+   CLASSIFICATION
+═════════════════════════════════════════════════════════════ */
+function fngColor(v) {
+  if (v <= 24) return 'var(--green-x)';   // extreme fear  → dark green
+  if (v <= 44) return 'var(--green)';     // fear          → green
+  if (v <= 54) return 'var(--orange)';    // neutral       → orange
+  if (v <= 74) return 'var(--red)';       // greed         → red
+  return 'var(--red-x)';                  // extreme greed → deep red
+}
+function fngLabel(v) {
+  if (v <= 24) return 'Extreme Fear';
+  if (v <= 44) return 'Fear';
+  if (v <= 54) return 'Neutral';
+  if (v <= 74) return 'Greed';
+  return 'Extreme Greed';
+}
+function dropColor(d) {
+  if (d <= -CONFIG.signal.dropBelowPct) return 'c-red';
+  if (d <= -5) return 'c-orange';
+  if (d <   0) return 'c-muted';
+  return 'c-green';
+}
+function computeSignal() {
+  const fearMet = S.fng     !== null && S.fng < CONFIG.signal.fearBelow;
+  const dropMet = S.dropPct !== null && S.dropPct <= -CONFIG.signal.dropBelowPct;
+  if (fearMet && dropMet)
+    return { cls: 'sig-strong', icon: '🟢', text: 'STRONG BUY',
+      desc: 'Both conditions met — Extreme Fear and price >10% below the 30-day high.', fearMet, dropMet };
+  if (fearMet || dropMet)
+    return { cls: 'sig-consider', icon: '🟡', text: 'CONSIDER BUYING',
+      desc: 'One of the two buying conditions is active.', fearMet, dropMet };
+  return { cls: 'sig-hold', icon: '⬜', text: 'HOLD',
+    desc: 'Neither buying condition is met right now.', fearMet, dropMet };
+}
+
+/* ═════════════════════════════════════════════════════════════
+   RENDER
+═════════════════════════════════════════════════════════════ */
+function sparkline(closes) {
+  if (!closes || closes.length < 2) return '';
+  const w = 320, h = 54, pad = 4, n = closes.length;
+  const min = Math.min(...closes), max = Math.max(...closes), rng = (max - min) || 1;
+  const x = i => pad + (i / (n - 1)) * (w - 2 * pad);
+  const y = v => pad + (1 - (v - min) / rng) * (h - 2 * pad);
+  const pts  = closes.map((c, i) => x(i).toFixed(1) + ',' + y(c).toFixed(1)).join(' ');
+  const up   = closes[n - 1] >= closes[0];
+  const col  = up ? 'var(--green)' : 'var(--red)';
+  const fill = up ? 'rgba(76,175,80,.12)' : 'rgba(239,83,80,.12)';
+  const area = pad + ',' + (h - pad) + ' ' + pts + ' ' + (w - pad) + ',' + (h - pad);
+  return '<div class="spark-wrap">' +
+    '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" ' +
+      'role="img" aria-label="Bitcoin price trend over the last 30 days">' +
+      '<polygon points="' + area + '" fill="' + fill + '"/>' +
+      '<polyline points="' + pts + '" fill="none" stroke="' + col +
+        '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '</svg>' +
+    '<div class="spark-range"><span>30d low ' + eur(min) + '</span>' +
+      '<span>30d high ' + eur(max) + '</span></div>' +
+  '</div>';
+}
+
+function renderPrice() {
+  const el  = document.getElementById('price-content');
+  const tag = document.getElementById('price-src');
+  if (S.price === null) {
+    el.innerHTML = '<div class="error-pill">⚠ Could not load price from any source. Retrying soon…</div>';
+    tag.classList.remove('show');
+    return;
+  }
+  tag.className = 'badge show ' + (S.priceFresh ? 'badge-src' : 'badge-stale');
+  tag.textContent = S.priceFresh ? S.priceSrc : 'Cached';
+
+  const dc = dropColor(S.dropPct);
+  el.innerHTML =
+    '<div class="price-big price-pop">' + eur(S.price) + '</div>' +
+    sparkline(S.closes) +
+    '<div class="price-rows">' +
+      '<div class="price-row"><span class="lbl">30-Day High</span>' +
+        '<span class="val c-btc">' + (S.high30d !== null ? eur(S.high30d) : 'N/A') + '</span></div>' +
+      '<div class="price-row"><span class="lbl">Drop from High</span>' +
+        '<span class="val ' + dc + '">' + (S.dropPct !== null ? pct(S.dropPct) : 'N/A') + '</span></div>' +
+    '</div>';
+}
+
+function renderFng() {
+  const el = document.getElementById('fng-content');
+  document.getElementById('fng-stale').classList.toggle('show', S.fng !== null && !S.fngFresh);
+  if (S.fng === null) {
+    el.innerHTML = '<div class="error-pill">⚠ Could not load Fear &amp; Greed data.</div>';
+    return;
+  }
+  const col = fngColor(S.fng);
+  const rad = (-180 + (S.fng / 100) * 180) * Math.PI / 180;
+  const cx = 90, cy = 95, r = 72;
+  const nx = (cx + r * Math.cos(rad)).toFixed(2);
+  const ny = (cy + r * Math.sin(rad)).toFixed(2);
+  el.innerHTML =
+    '<div class="gauge-wrap">' +
+      '<svg class="gauge-svg" viewBox="0 0 180 104" role="img" aria-label="Fear and Greed score ' + S.fng + ' of 100, ' + S.fngTxt + '">' +
+        '<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%">' +
+          '<stop offset="0%" stop-color="#00a550"/>' +
+          '<stop offset="25%" stop-color="#4caf50"/>' +
+          '<stop offset="50%" stop-color="#ff9800"/>' +
+          '<stop offset="75%" stop-color="#ef5350"/>' +
+          '<stop offset="100%" stop-color="#c62828"/>' +
+        '</linearGradient></defs>' +
+        '<path d="M 18 95 A 72 72 0 0 1 162 95" fill="none" stroke="#252535" stroke-width="13" stroke-linecap="round"/>' +
+        '<path d="M 18 95 A 72 72 0 0 1 162 95" fill="none" stroke="url(#g)" stroke-width="13" stroke-linecap="round"/>' +
+        '<circle cx="' + nx + '" cy="' + ny + '" r="8" fill="white" stroke="#111118" stroke-width="2.5"/>' +
+      '</svg>' +
+      '<div class="gauge-score" style="color:' + col + '">' + S.fng + '</div>' +
+      '<div class="gauge-label" style="color:' + col + '">' + S.fngTxt + '</div>' +
+      '<div class="gauge-ticks">' +
+        '<span class="gauge-tick" style="color:var(--green-x)">Extreme<br>Fear</span>' +
+        '<span class="gauge-tick" style="color:var(--green)">Fear</span>' +
+        '<span class="gauge-tick" style="color:var(--orange)">Neutral</span>' +
+        '<span class="gauge-tick" style="color:var(--red)">Greed</span>' +
+        '<span class="gauge-tick" style="color:var(--red-x)">Extreme<br>Greed</span>' +
+      '</div>' +
+    '</div>';
+}
+
+function renderSignal() {
+  const el = document.getElementById('signal-content');
+  if (S.price === null && S.fng === null) {
+    el.innerHTML = '<div class="error-pill">⚠ Waiting for price &amp; Fear/Greed data…</div>';
+    return;
+  }
+  const sig = computeSignal();
+  const fngVal  = S.fng     !== null ? S.fng + ' / 100'          : 'N/A';
+  const dropVal = S.dropPct !== null ? S.dropPct.toFixed(1) + '%' : 'N/A';
+  el.innerHTML =
+    '<div class="signal-box ' + sig.cls + '">' +
+      '<div class="signal-icon">' + sig.icon + '</div>' +
+      '<div class="signal-text">' + sig.text + '</div>' +
+      '<div class="signal-desc">' + sig.desc + '</div>' +
+    '</div>' +
+    '<div class="conditions">' +
+      '<div class="cond"><div class="cond-dot ' + (sig.fearMet ? 'dot-on' : 'dot-off') + '"></div>' +
+        '<span>Fear &amp; Greed below ' + CONFIG.signal.fearBelow +
+        ' <span style="color:var(--muted)">— currently ' + fngVal + '</span></span></div>' +
+      '<div class="cond"><div class="cond-dot ' + (sig.dropMet ? 'dot-on' : 'dot-off') + '"></div>' +
+        '<span>Price &gt;' + CONFIG.signal.dropBelowPct + '% below 30-day high' +
+        ' <span style="color:var(--muted)">— currently ' + dropVal + '</span></span></div>' +
+    '</div>';
+
+  // Reflect the live state in the browser tab title
+  if (S.price !== null) document.title = eur(S.price) + ' · ' + sig.text + ' · BTC';
+}
+
+/* ═════════════════════════════════════════════════════════════
+   LOAD CYCLE
+═════════════════════════════════════════════════════════════ */
+async function loadData() {
+  const cache = store.get(CONFIG.keys.cache) || {};
+  let pr = null, oh = null, fg = null;
+
+  await Promise.all([
+    firstOk(priceSources).then(r => pr = r).catch(() => {}),
+    firstOk(ohlcSources).then(r => oh = r).catch(() => {}),
+    fetchFng().then(r => fg = r).catch(() => {}),
+  ]);
+
+  // ── price ──
+  if (pr) { S.price = pr.value; S.priceSrc = pr.src; S.priceFresh = true; }
+  else if (cache.price != null) { S.price = cache.price; S.priceSrc = cache.priceSrc; S.priceFresh = false; }
+  else { S.price = null; S.priceFresh = false; }
+
+  // ── ohlc (high + sparkline) ──
+  let highs = null;
+  if (oh) { highs = oh.value.highs; S.closes = oh.value.closes; S.ohlcFresh = true; }
+  else if (cache.closes) { S.closes = cache.closes; S.ohlcFresh = false; }
+
+  if (highs) {
+    // include the live price so the high always reflects "now"
+    S.high30d = Math.max(...highs, S.price != null ? S.price : -Infinity);
+  } else if (cache.high30d != null) {
+    S.high30d = S.price != null ? Math.max(cache.high30d, S.price) : cache.high30d;
+  } else {
+    S.high30d = null;
+  }
+
+  S.dropPct = (S.price != null && S.high30d != null)
+    ? ((S.price - S.high30d) / S.high30d) * 100 : null;
+
+  // ── fear & greed ──
+  if (fg) { S.fng = fg.value; S.fngTxt = fg.txt; S.fngFresh = true; }
+  else if (cache.fng != null) { S.fng = cache.fng; S.fngTxt = cache.fngTxt; S.fngFresh = false; }
+
+  // ── persist best-known snapshot ──
+  store.set(CONFIG.keys.cache, {
+    price: S.price, priceSrc: S.priceSrc, high30d: S.high30d,
+    closes: S.closes, fng: S.fng, fngTxt: S.fngTxt, ts: Date.now(),
+  });
+  S.lastLoad = Date.now();
+
+  renderPrice();
+  renderFng();
+  renderSignal();
+}
+
+async function run() {
+  if (loading) return;
+  loading = true;
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true;
+  try { await loadData(); }
+  finally {
+    loading = false;
+    btn.disabled = false;
+    nextRefreshAt = Date.now() + CONFIG.refreshMs;
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(run, CONFIG.refreshMs);
+  }
+}
+
+/* live "updated Xs ago · next in M:SS" footer */
+setInterval(() => {
+  if (!S.lastLoad) return;
+  const agoS  = Math.round((Date.now() - S.lastLoad) / 1000);
+  const ago   = agoS < 60 ? agoS + 's ago' : Math.floor(agoS / 60) + 'm ' + (agoS % 60) + 's ago';
+  const leftS = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000));
+  const next  = Math.floor(leftS / 60) + ':' + String(leftS % 60).padStart(2, '0');
+  document.getElementById('status-line').textContent = 'Updated ' + ago + ' · next refresh in ' + next;
+}, 1000);
+
+/* ═════════════════════════════════════════════════════════════
+   SETTINGS / TELEGRAM
+═════════════════════════════════════════════════════════════ */
+function toggleSettings() {
+  const btn = document.getElementById('settings-btn');
+  const panel = document.getElementById('settings-panel');
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+}
+function toggleReveal() {
+  revealed = !revealed;
+  document.getElementById('bot-token').type = revealed ? 'text' : 'password';
+  document.getElementById('reveal-btn').textContent = revealed ? 'HIDE' : 'SHOW';
+}
+function saveTelegram() {
+  const token  = document.getElementById('bot-token').value.trim();
+  const chatId = document.getElementById('chat-id').value.trim();
+  store.set(CONFIG.keys.tg, { token, chatId });
+  document.getElementById('saved-tag').classList.toggle('show', !!(token && chatId));
+}
+function clearTelegram() {
+  store.del(CONFIG.keys.tg);
+  document.getElementById('bot-token').value = '';
+  document.getElementById('chat-id').value = '';
+  document.getElementById('saved-tag').classList.remove('show');
+  const st = document.getElementById('send-status');
+  st.textContent = 'Saved Telegram settings cleared.';
+  st.className = 'send-status';
+}
+function loadTelegram() {
+  const tg = store.get(CONFIG.keys.tg);
+  if (tg && (tg.token || tg.chatId)) {
+    document.getElementById('bot-token').value = tg.token || '';
+    document.getElementById('chat-id').value = tg.chatId || '';
+    document.getElementById('saved-tag').classList.toggle('show', !!(tg.token && tg.chatId));
+  } else {
+    toggleSettings();   // first run → open the panel so setup is obvious
+  }
+}
+
+async function sendTelegram() {
+  const token  = document.getElementById('bot-token').value.trim();
+  const chatId = document.getElementById('chat-id').value.trim();
+  const statusEl = document.getElementById('send-status');
+  const btn = document.getElementById('tg-btn');
+
+  if (!token || !chatId) {
+    statusEl.textContent = '⚠ Enter your Bot Token and Chat ID first.';
+    statusEl.className = 'send-status s-err';
+    if (!document.getElementById('settings-panel').classList.contains('open')) toggleSettings();
+    return;
+  }
+
+  const sig = computeSignal();
+  const lines = [
+    '📊 *BTC Decision Dashboard*',
+    '',
+    sig.icon + ' *Signal: ' + sig.text + '*',
+    '_' + sig.desc + '_',
+    '',
+    '💶 *Price:* ' + (S.price   !== null ? eur(S.price)   : 'N/A') +
+      (S.priceFresh ? '' : ' _(cached)_'),
+    '📈 *30d High:* ' + (S.high30d !== null ? eur(S.high30d) : 'N/A'),
+    '📉 *Drop from High:* ' + (S.dropPct !== null ? pct(S.dropPct) : 'N/A'),
+    '',
+    '😨 *Fear & Greed:* ' + (S.fng !== null ? S.fng + ' — ' + S.fngTxt : 'N/A'),
+    '',
+    '_' + new Date().toLocaleString('en-GB') + '_',
+  ];
+
+  statusEl.textContent = 'Sending…';
+  statusEl.className = 'send-status';
+  btn.disabled = true;
+  try {
+    const res = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: lines.join('\n'), parse_mode: 'Markdown' }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      statusEl.textContent = '✓ Alert sent successfully!';
+      statusEl.className = 'send-status s-ok';
+    } else {
+      statusEl.textContent = '✗ Telegram error: ' + (data.description || 'Unknown');
+      statusEl.className = 'send-status s-err';
+    }
+  } catch (e) {
+    statusEl.textContent = '✗ Network error — check your Bot Token and try again.';
+    statusEl.className = 'send-status s-err';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ═════════════════════════════════════════════════════════════
+   INIT
+═════════════════════════════════════════════════════════════ */
+loadTelegram();
+run();
+document.addEventListener('visibilitychange', () => {
+  // refresh when the tab is brought back to the foreground if data looks stale
+  if (!document.hidden && S.lastLoad && Date.now() - S.lastLoad > CONFIG.refreshMs) run();
+});
+</script>
+</body>
+</html>
